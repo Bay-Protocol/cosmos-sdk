@@ -143,6 +143,7 @@ type BaseApp struct { // nolint: maligned
 func NewBaseApp(
 	name string, logger log.Logger, db dbm.DB, txDecoder sdk.TxDecoder, options ...func(*BaseApp),
 ) *BaseApp {
+	fmt.Printf("------------------------------------------------ NewBaseApp\n\n\n")
 	app := &BaseApp{
 		logger:           logger,
 		name:             name,

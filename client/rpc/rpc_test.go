@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	ctypes "github.com/tendermint/tendermint/rpc/core/types"
+	"github.com/tendermint/tendermint/rpc/coretypes"
 
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/codec/legacy"
@@ -51,7 +51,7 @@ func (s *IntegrationTestSuite) TestLatestBlocks() {
 	res, err := rest.GetRequest(fmt.Sprintf("%s/blocks/latest", val0.APIAddress))
 	s.Require().NoError(err)
 
-	var result ctypes.ResultBlock
+	var result coretypes.ResultBlock
 	err = legacy.Cdc.UnmarshalJSON(res, &result)
 	s.Require().NoError(err)
 }

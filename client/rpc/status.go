@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tendermint/tendermint/libs/bytes"
-	"github.com/tendermint/tendermint/p2p"
-	ctypes "github.com/tendermint/tendermint/rpc/core/types"
+	"github.com/tendermint/tendermint/rpc/coretypes"
+	tmtypes "github.com/tendermint/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -29,8 +29,8 @@ type validatorInfo struct {
 // ResultStatus is node's info, same as Tendermint, except that we use our own
 // PubKey.
 type resultStatus struct {
-	NodeInfo      p2p.DefaultNodeInfo
-	SyncInfo      ctypes.SyncInfo
+	NodeInfo      tmtypes.NodeInfo
+	SyncInfo      coretypes.SyncInfo
 	ValidatorInfo validatorInfo
 }
 
@@ -80,10 +80,10 @@ func StatusCommand() *cobra.Command {
 	return cmd
 }
 
-func getNodeStatus(clientCtx client.Context) (*ctypes.ResultStatus, error) {
+func getNodeStatus(clientCtx client.Context) (*coretypes.ResultStatus, error) {
 	node, err := clientCtx.GetNode()
 	if err != nil {
-		return &ctypes.ResultStatus{}, err
+		return &coretypes.ResultStatus{}, err
 	}
 
 	return node.Status(context.Background())
@@ -92,7 +92,7 @@ func getNodeStatus(clientCtx client.Context) (*ctypes.ResultStatus, error) {
 // NodeInfoResponse defines a response type that contains node status and version
 // information.
 type NodeInfoResponse struct {
-	p2p.DefaultNodeInfo `json:"node_info"`
+	tmtypes.NodeInfo `json:"node_info"`
 
 	ApplicationVersion version.Info `json:"application_version"`
 }
@@ -106,7 +106,7 @@ func NodeInfoRequestHandlerFn(clientCtx client.Context) http.HandlerFunc {
 		}
 
 		resp := NodeInfoResponse{
-			DefaultNodeInfo:    status.NodeInfo,
+			NodeInfo:           status.NodeInfo,
 			ApplicationVersion: version.NewInfo(),
 		}
 

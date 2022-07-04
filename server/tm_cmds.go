@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/tendermint/tendermint/p2p"
 	pvm "github.com/tendermint/tendermint/privval"
 	tversion "github.com/tendermint/tendermint/version"
 	yaml "gopkg.in/yaml.v2"
@@ -25,11 +24,12 @@ func ShowNodeIDCmd() *cobra.Command {
 			serverCtx := GetServerContextFromCmd(cmd)
 			cfg := serverCtx.Config
 
-			nodeKey, err := p2p.LoadNodeKey(cfg.NodeKeyFile())
+			nodeKey, err := cfg.LoadNodeKeyID()
 			if err != nil {
 				return err
 			}
-			fmt.Println(nodeKey.ID())
+
+			fmt.Println(nodeKey)
 			return nil
 		},
 	}
@@ -44,20 +44,27 @@ func ShowValidatorCmd() *cobra.Command {
 			serverCtx := GetServerContextFromCmd(cmd)
 			cfg := serverCtx.Config
 
-			privValidator := pvm.LoadFilePV(cfg.PrivValidatorKeyFile(), cfg.PrivValidatorStateFile())
-			pk, err := privValidator.GetPubKey()
+			privValidator, err := pvm.LoadFilePV(cfg.PrivValidator.KeyFile(), cfg.PrivValidator.StateFile())
 			if err != nil {
 				return err
 			}
+
+			pk, err := privValidator.GetPubKey(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			sdkPK, err := cryptocodec.FromTmPubKeyInterface(pk)
 			if err != nil {
 				return err
 			}
+
 			clientCtx := client.GetClientContextFromCmd(cmd)
 			bz, err := clientCtx.Codec.MarshalInterfaceJSON(sdkPK)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println(string(bz))
 			return nil
 		},
@@ -75,7 +82,11 @@ func ShowAddressCmd() *cobra.Command {
 			serverCtx := GetServerContextFromCmd(cmd)
 			cfg := serverCtx.Config
 
-			privValidator := pvm.LoadFilePV(cfg.PrivValidatorKeyFile(), cfg.PrivValidatorStateFile())
+			privValidator, err := pvm.LoadFilePV(cfg.PrivValidator.KeyFile(), cfg.PrivValidator.StateFile())
+			if err != nil {
+				return err
+			}
+
 			valConsAddr := (sdk.ConsAddress)(privValidator.GetAddress())
 			fmt.Println(valConsAddr.String())
 			return nil
@@ -90,9 +101,7 @@ func VersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print tendermint libraries' version",
-		Long: `Print protocols' and libraries' version numbers
-against which this app has been compiled.
-`,
+		Long:  "Print protocols' and libraries' version numbers against which this app has been compiled.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bs, err := yaml.Marshal(&struct {
 				Tendermint    string
@@ -100,7 +109,7 @@ against which this app has been compiled.
 				BlockProtocol uint64
 				P2PProtocol   uint64
 			}{
-				Tendermint:    tversion.TMCoreSemVer,
+				Tendermint:    tversion.TMVersion,
 				ABCI:          tversion.ABCIVersion,
 				BlockProtocol: tversion.BlockProtocol,
 				P2PProtocol:   tversion.P2PProtocol,
