@@ -238,10 +238,10 @@ func WrapServiceResult(ctx Context, res proto.Message, err error) (*Result, erro
 		return nil, err
 	}
 
-	any, err := codectypes.NewAnyWithValue(res)
-	if err != nil {
-		return nil, err
-	}
+	// any, err := codectypes.NewAnyWithValue(res) // LOOK_HERE
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	var data []byte
 	if res != nil {

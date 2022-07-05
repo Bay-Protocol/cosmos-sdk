@@ -51,9 +51,11 @@ func (s *IntegrationTestSuite) SetupSuite() {
 		s.T().Skip("skipping test in unit-tests mode.")
 	}
 
-	s.network = network.New(s.T(), s.cfg)
+	var err error
+	s.network, err = network.New(s.T(), s.T().TempDir(), s.cfg)
+	s.Require().NoError(err)
 
-	_, err := s.network.WaitForHeight(1)
+	_, err = s.network.WaitForHeight(1)
 	s.Require().NoError(err)
 
 	val := s.network.Validators[0]
@@ -257,7 +259,7 @@ func (s *IntegrationTestSuite) TestNewCmdFeeGrant() {
 	alreadyExistedGrantee := s.addedGrantee
 	clientCtx := val.ClientCtx
 
-	fromAddr, fromName, _, err := client.GetFromFields(clientCtx.Keyring, granter.String(), clientCtx.GenerateOnly)
+	fromAddr, fromName, _, err := client.GetFromFields(clientCtx, clientCtx.Keyring, granter.String())
 	s.Require().Equal(fromAddr, granter)
 	s.Require().NoError(err)
 

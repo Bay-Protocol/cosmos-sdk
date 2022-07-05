@@ -29,7 +29,7 @@ func GetSignBatchCommand() *cobra.Command {
 		Long: `Sign batch files of transactions generated with --generate-only.
 The command processes list of transactions from file (one StdTx each line), generate
 signed transactions or signatures and print their JSON encoding, delimited by '\n'.
-As the signatures are generated, the command updates the account sequence number accordingly.
+As the signatures are generated, the command updates the account and sequence number accordingly.
 
 If the --signature-only flag is set, it will output the signature parts only.
 
@@ -38,6 +38,9 @@ As a result, the account and the sequence number queries will not be performed a
 it is required to set such parameters manually. Note, invalid values will cause
 the transaction to fail. The sequence will be incremented automatically for each
 transaction that is signed.
+
+If --account-number or --sequence flag is used when offline=false, they are ignored and
+overwritten by the default flag values.
 
 The --multisig=<multisig_key> flag generates a signature on behalf of a multisig
 account key. It implies --signature-only.
@@ -51,8 +54,9 @@ account key. It implies --signature-only.
 	cmd.Flags().String(flags.FlagOutputDocument, "", "The document will be written to the given file instead of STDOUT")
 	cmd.Flags().Bool(flagSigOnly, true, "Print only the generated signature, then exit")
 	cmd.Flags().String(flags.FlagChainID, "", "network chain ID")
-	cmd.MarkFlagRequired(flags.FlagFrom)
 	flags.AddTxFlagsToCmd(cmd)
+
+	cmd.MarkFlagRequired(flags.FlagFrom)
 
 	return cmd
 }
@@ -90,6 +94,10 @@ func makeSignBatchCmd() func(cmd *cobra.Command, args []string) error {
 		}
 		scanner := authclient.NewBatchScanner(txCfg, infile)
 
+		if !clientCtx.Offline {
+			txFactory = txFactory.WithAccountNumber(0).WithSequence(0)
+		}
+
 		for sequence := txFactory.Sequence(); scanner.Scan(); sequence++ {
 			unsignedStdTx := scanner.Tx()
 			txFactory = txFactory.WithSequence(sequence)
@@ -99,7 +107,7 @@ func makeSignBatchCmd() func(cmd *cobra.Command, args []string) error {
 			}
 			if ms == "" {
 				from, _ := cmd.Flags().GetString(flags.FlagFrom)
-				_, fromName, _, err := client.GetFromFields(txFactory.Keybase(), from, clientCtx.GenerateOnly)
+				_, fromName, _, err := client.GetFromFields(clientCtx, txFactory.Keybase(), from)
 				if err != nil {
 					return fmt.Errorf("error getting account from keybase: %w", err)
 				}
@@ -108,7 +116,7 @@ func makeSignBatchCmd() func(cmd *cobra.Command, args []string) error {
 					return err
 				}
 			} else {
-				multisigAddr, _, _, err := client.GetFromFields(txFactory.Keybase(), ms, clientCtx.GenerateOnly)
+				multisigAddr, _, _, err := client.GetFromFields(clientCtx, txFactory.Keybase(), ms)
 				if err != nil {
 					return fmt.Errorf("error getting account from keybase: %w", err)
 				}
@@ -145,7 +153,7 @@ func setOutputFile(cmd *cobra.Command) (func(), error) {
 		return func() {}, nil
 	}
 
-	fp, err := os.OpenFile(outputDoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	fp, err := os.OpenFile(outputDoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return func() {}, err
 	}
@@ -185,8 +193,9 @@ be generated via the 'multisign' command.
 	cmd.Flags().String(flags.FlagOutputDocument, "", "The document will be written to the given file instead of STDOUT")
 	cmd.Flags().String(flags.FlagChainID, "", "The network chain ID")
 	cmd.Flags().Bool(flagAmino, false, "Generate Amino encoded JSON suitable for submiting to the txs REST endpoint")
-	cmd.MarkFlagRequired(flags.FlagFrom)
 	flags.AddTxFlagsToCmd(cmd)
+
+	cmd.MarkFlagRequired(flags.FlagFrom)
 
 	return cmd
 }
@@ -228,7 +237,7 @@ func makeSignCmd() func(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		from, _ := cmd.Flags().GetString(flags.FlagFrom)
-		_, fromName, _, err := client.GetFromFields(txF.Keybase(), from, clientCtx.GenerateOnly)
+		_, fromName, _, err := client.GetFromFields(clientCtx, txF.Keybase(), from)
 		if err != nil {
 			return fmt.Errorf("error getting account from keybase: %w", err)
 		}
@@ -238,7 +247,7 @@ func makeSignCmd() func(cmd *cobra.Command, args []string) error {
 			multisigAddr, err := sdk.AccAddressFromBech32(multisig)
 			if err != nil {
 				// Bech32 decode error, maybe it's a name, we try to fetch from keyring
-				multisigAddr, _, _, err = client.GetFromFields(txFactory.Keybase(), multisig, clientCtx.GenerateOnly)
+				multisigAddr, _, _, err = client.GetFromFields(clientCtx, txFactory.Keybase(), multisig)
 				if err != nil {
 					return fmt.Errorf("error getting account from keybase: %w", err)
 				}
@@ -261,6 +270,11 @@ func makeSignCmd() func(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
+		bMode, err := f.GetString(flags.FlagBroadcastMode)
+		if err != nil {
+			return err
+		}
+
 		var json []byte
 		if aminoJSON {
 			stdTx, err := tx.ConvertTxToStdTx(clientCtx.LegacyAmino, txBuilder.GetTx())
@@ -269,7 +283,7 @@ func makeSignCmd() func(cmd *cobra.Command, args []string) error {
 			}
 			req := BroadcastReq{
 				Tx:   stdTx,
-				Mode: "block|sync|async",
+				Mode: bMode,
 			}
 			json, err = clientCtx.LegacyAmino.MarshalJSON(req)
 			if err != nil {
@@ -288,7 +302,7 @@ func makeSignCmd() func(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		fp, err := os.OpenFile(outputDoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+		fp, err := os.OpenFile(outputDoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 		if err != nil {
 			return err
 		}

@@ -43,9 +43,11 @@ func (s *IntegrationTestSuite) SetupSuite() {
 		s.T().Skip("skipping test in unit-tests mode.")
 	}
 
-	s.network = network.New(s.T(), s.cfg)
+	var err error
+	s.network, err = network.New(s.T(), s.T().TempDir(), s.cfg)
+	s.Require().NoError(err)
 
-	_, err := s.network.WaitForHeight(1)
+	_, err = s.network.WaitForHeight(1)
 	s.Require().NoError(err)
 
 	unbond, err := sdk.ParseCoinNormalized("10stake")
@@ -1322,7 +1324,7 @@ func (s *IntegrationTestSuite) TestBlockResults() {
 	require.NoError(err)
 
 	// Create a HTTP rpc client.
-	rpcClient, err := http.New(val.RPCAddress, "/websocket")
+	rpcClient, err := http.New(val.RPCAddress)
 	require.NoError(err)
 
 	// Loop until we find a block result with the correct validator updates.

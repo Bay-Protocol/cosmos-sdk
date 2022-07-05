@@ -19,8 +19,7 @@ func TestMigrate(t *testing.T) {
 	clientCtx := client.Context{}.
 		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
 		WithTxConfig(encodingConfig.TxConfig).
-		WithLegacyAmino(encodingConfig.Amino).
-		WithJSONCodec(encodingConfig.Marshaler)
+		WithLegacyAmino(encodingConfig.Amino)
 
 	consPubKey := ed25519.GenPrivKeyFromSecret([]byte("val0")).PubKey()
 	stakingGenState := v038staking.GenesisState{

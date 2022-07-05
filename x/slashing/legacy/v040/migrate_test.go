@@ -18,8 +18,7 @@ func TestMigrate(t *testing.T) {
 	clientCtx := client.Context{}.
 		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
 		WithTxConfig(encodingConfig.TxConfig).
-		WithLegacyAmino(encodingConfig.Amino).
-		WithJSONCodec(encodingConfig.Marshaler)
+		WithLegacyAmino(encodingConfig.Amino)
 
 	addr1, err := sdk.ConsAddressFromBech32("cosmosvalcons104cjmxkrg8y8lmrp25de02e4zf00zle4mzs685")
 	require.NoError(t, err)

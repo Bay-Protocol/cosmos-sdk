@@ -31,7 +31,7 @@ func TestGetPruningOptionsFromFlags(t *testing.T) {
 				v := viper.New()
 				v.Set(FlagPruning, types.PruningOptionCustom)
 				v.Set(FlagPruningKeepRecent, 1234)
-				v.Set(FlagPruningKeepEvery, 4321)
+				// v.Set(FlagPruningKeepEvery, 4321)
 				v.Set(FlagPruningInterval, 10)
 
 				return v

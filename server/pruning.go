@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/cosmos/cosmos-sdk/server/types"
-	"github.com/cosmos/cosmos-sdk/store"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 )
 
@@ -24,7 +23,7 @@ func GetPruningOptionsFromFlags(appOpts types.AppOptions) (storetypes.PruningOpt
 	case storetypes.PruningOptionCustom:
 		opts := storetypes.NewPruningOptions(
 			cast.ToUint64(appOpts.Get(FlagPruningKeepRecent)),
-			cast.ToUint64(appOpts.Get(FlagPruningKeepEvery)),
+			1,
 			cast.ToUint64(appOpts.Get(FlagPruningInterval)),
 		)
 
@@ -35,6 +34,6 @@ func GetPruningOptionsFromFlags(appOpts types.AppOptions) (storetypes.PruningOpt
 		return opts, nil
 
 	default:
-		return store.PruningOptions{}, fmt.Errorf("unknown pruning strategy %s", strategy)
+		return storetypes.PruningOptions{}, fmt.Errorf("unknown pruning strategy %s", strategy)
 	}
 }
