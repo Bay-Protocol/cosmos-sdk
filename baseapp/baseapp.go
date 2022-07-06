@@ -3,7 +3,6 @@ package baseapp
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -17,6 +16,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/snapshots"
 	"github.com/cosmos/cosmos-sdk/store"
 	"github.com/cosmos/cosmos-sdk/store/rootmulti"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/x/auth/legacy/legacytx"
@@ -29,9 +29,7 @@ const (
 	runTxModeDeliver                   // Deliver a transaction
 )
 
-var (
-	_ abci.Application = (*BaseApp)(nil)
-)
+var _ abci.Application = (*BaseApp)(nil)
 
 type (
 	// Enum mode for app.runTx
@@ -143,7 +141,6 @@ type BaseApp struct { // nolint: maligned
 func NewBaseApp(
 	name string, logger log.Logger, db dbm.DB, txDecoder sdk.TxDecoder, options ...func(*BaseApp),
 ) *BaseApp {
-	fmt.Printf("------------------------------------------------ NewBaseApp\n\n\n")
 	app := &BaseApp{
 		logger:           logger,
 		name:             name,
@@ -201,60 +198,60 @@ func (app *BaseApp) MsgServiceRouter() *MsgServiceRouter { return app.msgService
 
 // MountStores mounts all IAVL or DB stores to the provided keys in the BaseApp
 // multistore.
-func (app *BaseApp) MountStores(keys ...sdk.StoreKey) {
+func (app *BaseApp) MountStores(keys ...storetypes.StoreKey) {
 	for _, key := range keys {
 		switch key.(type) {
-		case *sdk.KVStoreKey:
+		case *storetypes.KVStoreKey:
 			if !app.fauxMerkleMode {
-				app.MountStore(key, sdk.StoreTypeIAVL)
+				app.MountStore(key, storetypes.StoreTypeIAVL)
 			} else {
 				// StoreTypeDB doesn't do anything upon commit, and it doesn't
 				// retain history, but it's useful for faster simulation.
-				app.MountStore(key, sdk.StoreTypeDB)
+				app.MountStore(key, storetypes.StoreTypeDB)
 			}
 
-		case *sdk.TransientStoreKey:
-			app.MountStore(key, sdk.StoreTypeTransient)
+		case *storetypes.TransientStoreKey:
+			app.MountStore(key, storetypes.StoreTypeTransient)
 
 		default:
-			panic("Unrecognized store key type " + reflect.TypeOf(key).Name())
+			panic(fmt.Sprintf("Unrecognized store key type :%T", key))
 		}
 	}
 }
 
 // MountKVStores mounts all IAVL or DB stores to the provided keys in the
 // BaseApp multistore.
-func (app *BaseApp) MountKVStores(keys map[string]*sdk.KVStoreKey) {
+func (app *BaseApp) MountKVStores(keys map[string]*storetypes.KVStoreKey) {
 	for _, key := range keys {
 		if !app.fauxMerkleMode {
-			app.MountStore(key, sdk.StoreTypeIAVL)
+			app.MountStore(key, storetypes.StoreTypeIAVL)
 		} else {
 			// StoreTypeDB doesn't do anything upon commit, and it doesn't
 			// retain history, but it's useful for faster simulation.
-			app.MountStore(key, sdk.StoreTypeDB)
+			app.MountStore(key, storetypes.StoreTypeDB)
 		}
 	}
 }
 
 // MountTransientStores mounts all transient stores to the provided keys in
 // the BaseApp multistore.
-func (app *BaseApp) MountTransientStores(keys map[string]*sdk.TransientStoreKey) {
+func (app *BaseApp) MountTransientStores(keys map[string]*storetypes.TransientStoreKey) {
 	for _, key := range keys {
-		app.MountStore(key, sdk.StoreTypeTransient)
+		app.MountStore(key, storetypes.StoreTypeTransient)
 	}
 }
 
 // MountMemoryStores mounts all in-memory KVStores with the BaseApp's internal
 // commit multi-store.
-func (app *BaseApp) MountMemoryStores(keys map[string]*sdk.MemoryStoreKey) {
+func (app *BaseApp) MountMemoryStores(keys map[string]*storetypes.MemoryStoreKey) {
 	for _, memKey := range keys {
-		app.MountStore(memKey, sdk.StoreTypeMemory)
+		app.MountStore(memKey, storetypes.StoreTypeMemory)
 	}
 }
 
 // MountStore mounts a store to the provided key in the BaseApp multistore,
 // using the default DB.
-func (app *BaseApp) MountStore(key sdk.StoreKey, typ sdk.StoreType) {
+func (app *BaseApp) MountStore(key storetypes.StoreKey, typ storetypes.StoreType) {
 	app.cms.MountStoreWithDB(key, typ, nil)
 }
 
@@ -266,7 +263,7 @@ func (app *BaseApp) LoadLatestVersion() error {
 		return fmt.Errorf("failed to load latest version: %w", err)
 	}
 
-	return app.init()
+	return app.Init()
 }
 
 // DefaultStoreLoader will be used by default and loads the latest version
@@ -298,11 +295,11 @@ func (app *BaseApp) LoadVersion(version int64) error {
 		return fmt.Errorf("failed to load version %d: %w", version, err)
 	}
 
-	return app.init()
+	return app.Init()
 }
 
 // LastCommitID returns the last CommitID of the multistore.
-func (app *BaseApp) LastCommitID() sdk.CommitID {
+func (app *BaseApp) LastCommitID() storetypes.CommitID {
 	return app.cms.LastCommitID()
 }
 
@@ -311,7 +308,11 @@ func (app *BaseApp) LastBlockHeight() int64 {
 	return app.cms.LastCommitID().Version
 }
 
-func (app *BaseApp) init() error {
+// Init initializes the app. It seals the app, preventing any
+// further modifications. In addition, it validates the app against
+// the earlier provided settings. Returns an error if validation fails.
+// nil otherwise. Panics if the app is already sealed.
+func (app *BaseApp) Init() error {
 	if app.sealed {
 		panic("cannot call initFromMainStore: baseapp already sealed")
 	}
@@ -466,6 +467,8 @@ func (app *BaseApp) StoreConsensusParams(ctx sdk.Context, cp *tmproto.ConsensusP
 	app.paramStore.Set(ctx, ParamStoreKeyBlockParams, cp.Block)
 	app.paramStore.Set(ctx, ParamStoreKeyEvidenceParams, cp.Evidence)
 	app.paramStore.Set(ctx, ParamStoreKeyValidatorParams, cp.Validator)
+	// We're explicitly not storing the Tendermint app_version in the param store. It's
+	// stored instead in the x/upgrade store, with its own bump logic.
 }
 
 // getMaximumBlockGas gets the maximum gas from the consensus params. It panics
@@ -589,7 +592,7 @@ func (app *BaseApp) cacheTxContext(ctx sdk.Context, txBytes []byte) (sdk.Context
 // Note, gas execution info is always returned. A reference to a Result is
 // returned if the tx does not run out of gas and if all the messages are valid
 // and execute successfully. An error is returned otherwise.
-func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, err error) {
+func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, result *sdk.Result, anteEvents []abci.Event, priority int64, err error) {
 	// NOTE: GasWanted should be returned by the AnteHandler. GasUsed is
 	// determined by the GasMeter. We need access to the context to get the gas
 	// meter so we initialize upfront.
@@ -600,7 +603,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 
 	// only run the tx if there is block gas remaining
 	if mode == runTxModeDeliver && ctx.BlockGasMeter().IsOutOfGas() {
-		return gInfo, nil, nil, sdkerrors.Wrap(sdkerrors.ErrOutOfGas, "no block gas left to run tx")
+		return gInfo, nil, nil, 0, sdkerrors.Wrap(sdkerrors.ErrOutOfGas, "no block gas left to run tx")
 	}
 
 	defer func() {
@@ -635,12 +638,12 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 
 	tx, err := app.txDecoder(txBytes)
 	if err != nil {
-		return sdk.GasInfo{}, nil, nil, err
+		return sdk.GasInfo{}, nil, nil, 0, err
 	}
 
 	msgs := tx.GetMsgs()
 	if err := validateBasicTxMsgs(msgs); err != nil {
-		return sdk.GasInfo{}, nil, nil, err
+		return sdk.GasInfo{}, nil, nil, 0, err
 	}
 
 	if app.anteHandler != nil {
@@ -676,9 +679,10 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 		gasWanted = ctx.GasMeter().Limit()
 
 		if err != nil {
-			return gInfo, nil, nil, err
+			return gInfo, nil, nil, 0, err
 		}
 
+		priority = ctx.Priority()
 		msCache.Write()
 		anteEvents = events.ToABCIEvents()
 	}
@@ -704,7 +708,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 		}
 	}
 
-	return gInfo, result, anteEvents, err
+	return gInfo, result, anteEvents, priority, err
 }
 
 // runMsgs iterates through a list of messages and executes them with the provided
@@ -782,5 +786,6 @@ func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, mode runTxMode) (*s
 		Data:   data,
 		Log:    strings.TrimSpace(msgLogs.String()),
 		Events: events.ToABCIEvents(),
+		// MsgResponses: msgResponses, // LOOK_HERE
 	}, nil
 }
